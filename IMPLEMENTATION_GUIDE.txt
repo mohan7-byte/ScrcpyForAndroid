@@ -1,0 +1,120 @@
+package org.client.scrcpy;
+
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.hardware.Sensor;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.IBinder;
+import android.os.SystemClock;
+import android.text.Editable;
+import android.text.TextUtils;
+import android.text.TextWatcher;
+import android.transition.AutoTransition;
+import android.transition.TransitionManager;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.view.Display;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ListPopupWindow;
+import android.widget.ScrollView;
+import android.widget.Spinner;
+import android.widget.Switch;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import org.client.scrcpy.usb.AdbConnection;
+import org.client.scrcpy.usb.UsbAdb;
+import org.client.scrcpy.utils.AdbHelper;
+import org.client.scrcpy.utils.PreUtils;
+import org.client.scrcpy.utils.Progress;
+import org.client.scrcpy.utils.ResolutionHelper;
+import org.client.scrcpy.utils.SessionLog;
+import org.client.scrcpy.utils.ThreadUtils;
+import org.client.scrcpy.utils.Util;
+import org.json.JSONArray;
+import org.json.JSONException;
+
+import java.io.File;
+import java.util.concurrent.TimeUnit;
+
+
+public class MainActivity extends Activity implements Scrcpy.ServiceCallbacks, SensorEventListener {
+
+    // Same class implementation as original, just adding button listener and methods
+    // Copy entire original MainActivity.java and ADD these modifications:
+
+    // IN scrcpy_main() METHOD, AFTER LINE 340 (after powerOffButton listener), ADD:
+    //
+    // Button screenOffButton = findViewById(R.id.button_screen_off);
+    // if (screenOffButton != null) {
+    //     screenOffButton.setOnClickListener(v -> confirmScreenOffRemoteDevice());
+    // }
+    //
+
+    // AT END OF CLASS (BEFORE CLOSING BRACE), ADD:
+
+    private void confirmScreenOffRemoteDevice() {
+        getAttributes();
+        if (TextUtils.isEmpty(serverAdr)) {
+            Toast.makeText(context, "Server Address Empty", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] serverInfo = Util.getServerHostAndPort(serverAdr);
+        String device = serverInfo[0] + ":" + serverInfo[1];
+        Dialog.displayDialog(this,
+                getString(R.string.screen_off_title),
+                getString(R.string.screen_off_ask, device),
+                () -> screenOffRemoteDevice(device),
+                () -> {
+                });
+    }
+
+    private void screenOffRemoteDevice(String device) {
+        Progress.showDialog(MainActivity.this, getString(R.string.screen_off_wait));
+        ThreadUtils.workPost(() -> {
+            AdbHelper.adbCmd(App.mContext, "connect", device);
+            String result = AdbHelper.adbCmd(App.mContext, "-s", device, "shell", "input", "keyevent", "26");
+            SessionLog.i("ADB screen off device=" + device + " result=" + result);
+            ThreadUtils.post(() -> {
+                Progress.closeDialog();
+                if (MainActivity.this.isFinishing()) {
+                    return;
+                }
+                Toast.makeText(context, getString(R.string.screen_off_sent, device), Toast.LENGTH_SHORT).show();
+                startStatusMonitor();
+            });
+        });
+    }
+}
