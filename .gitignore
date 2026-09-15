@@ -1,0 +1,14 @@
+.gradle
+.idea
+*.iml
+*.apk
+*.ap_
+.DS_Store
+*.class
+bin/
+gen/
+build/
+*.log
+.classpath
+.project
+.settings/
