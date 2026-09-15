@@ -1,0 +1,6 @@
+[submodule "platform-tools"]
+	path = platform-tools
+	url = https://github.com/lzhiyong/android-sdk-tools.git
+[submodule "server"]
+	path = server
+	url = https://github.com/Genymobile/scrcpy.git
