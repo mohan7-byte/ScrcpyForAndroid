@@ -1,0 +1,59 @@
+CHANGES MADE TO MainActivity.java FOR SCREEN OFF FEATURE:
+
+1. Added button reference in scrcpy_main() method (after line 340):
+
+    Button screenOffButton = findViewById(R.id.button_screen_off);
+    if (screenOffButton != null) {
+        screenOffButton.setOnClickListener(v -> confirmScreenOffRemoteDevice());
+    }
+
+2. Added two new methods at the end of MainActivity class (before closing brace):
+
+    private void confirmScreenOffRemoteDevice() {
+        getAttributes();
+        if (TextUtils.isEmpty(serverAdr)) {
+            Toast.makeText(context, "Server Address Empty", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] serverInfo = Util.getServerHostAndPort(serverAdr);
+        String device = serverInfo[0] + ":" + serverInfo[1];
+        Dialog.displayDialog(this,
+                getString(R.string.screen_off_title),
+                getString(R.string.screen_off_ask, device),
+                () -> screenOffRemoteDevice(device),
+                () -> {
+                });
+    }
+
+    private void screenOffRemoteDevice(String device) {
+        Progress.showDialog(MainActivity.this, getString(R.string.screen_off_wait));
+        ThreadUtils.workPost(() -> {
+            AdbHelper.adbCmd(App.mContext, "connect", device);
+            // Send power button keyevent (26) to turn off screen without powering off device
+            String result = AdbHelper.adbCmd(App.mContext, "-s", device, "shell", "input", "keyevent", "26");
+            SessionLog.i("ADB screen off device=" + device + " result=" + result);
+            ThreadUtils.post(() -> {
+                Progress.closeDialog();
+                if (MainActivity.this.isFinishing()) {
+                    return;
+                }
+                Toast.makeText(context, getString(R.string.screen_off_sent, device), Toast.LENGTH_SHORT).show();
+                startStatusMonitor();
+            });
+        });
+    }
+
+IMPORTANT NOTES:
+- The keyevent 26 is the standard Android power button keyevent
+- This simulates a single power button press, which toggles the screen on/off
+- The device remains responsive to ADB commands even when screen is off
+- To wake the screen back up, you can send another keyevent 26 or use any wake-up method
+- No modifications needed to other files except the strings.xml and activity_main.xml layout which are included
+
+TO IMPLEMENT:
+1. Replace/update app/src/main/res/layout/activity_main.xml with provided version
+2. Replace/update app/src/main/res/values/strings.xml with provided version
+3. Open app/src/main/java/org/client/scrcpy/MainActivity.java
+4. Find the scrcpy_main() method and add the button listener after line 340
+5. Add the two new methods (confirmScreenOffRemoteDevice and screenOffRemoteDevice) before the final closing brace
+6. Build and run the APK
